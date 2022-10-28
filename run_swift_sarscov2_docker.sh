@@ -464,12 +464,13 @@ do
             # zcat $fqt2 | head -n $lncnt | gzip > "${prefix}"_R2_atrimd_dnsmpl.fq.gz
             # 200709 use seqtk to randomly sample fastq files for downsampling
             numrds=$(echo $maxreads | awk '{printf("%.0f", $1/2.0)}')
-            seqtk_d seqtk sample -s seed=11 /data/$fqt1 /data/$numrds |
+            seqtk_d sample -2 -s seed=11 /data/$fqt1 /data/$numrds |
                 gzip > "${prefix}"_R1_atrimd_dnsmpl.fq.gz
-            seqtk_d seqtk sample -s seed=11 /data/$fqt2 /data$numrds |
+            seqtk_d sample -2 -s seed=11 /data/$fqt2 /data/$numrds |
                 gzip > "${prefix}"_R2_atrimd_dnsmpl.fq.gz
             fqt1="${prefix}"_R1_atrimd_dnsmpl.fq.gz
             fqt2="${prefix}"_R2_atrimd_dnsmpl.fq.gz
+            echo "Downsampling completed"
         fi
 
         ### align reads ###
