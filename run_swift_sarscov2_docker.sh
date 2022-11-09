@@ -7,14 +7,15 @@
 # CHANGELOG:
 # 200809 - this script has been updated to run on the machine hosting Docker,
 #          and tools in separate docker images built with docker-compose
-
+# change to get bam file only
+# exit at line 618
 export DISPLAY=:1.0
 checkprimerOT="0"
 downsample="0"
 singleEndReads="0"
 metrics="1" # run metrics-only in absence of -v option
 
-mincov="10" # minimum coverage for calling a base in consensus (N-masked if below $mincov)
+mincov="30" # minimum coverage for calling a base in consensus (N-masked if below $mincov)
 ploidy="2" # test ploidy option in HaplotypeCaller
 
 # Print usage function along command line arguments
@@ -346,7 +347,7 @@ do
         echo "Trimming Illumina adapters"
         # NOTE: custom adapter file for Accel-amplicon Illumina adapter trimming
         trimmomatic_d trimmomatic  SE \
-            -threads 6 -trimlog /data/"${prefix}"_trimmatic_trimlog.log \
+            -threads 12 -trimlog /data/"${prefix}"_trimmatic_trimlog.log \
             /data/"$fq1" /data/"${prefix}"_R1_atrimd.fq.gz \
             ILLUMINACLIP:/usr/local/src/trimmomatic/TruSeq3-SE.fa:2:30:10 \
             #ILLUMINACLIP:/adapters/TruSeq3-SE.fa:2:30:10 \
@@ -419,7 +420,7 @@ do
         # 200521 remove minlen:30 filter to allow short read (dimer) counting
         # 200805 two-step ILLUMINACLIP testing to better remove adapter and downstream dark bases from short reads
         trimmomatic_d PE \
-            -threads 6 -trimlog /data/"${prefix}"_trimmatic_trimlog.log \
+            -threads 12 -trimlog /data/"${prefix}"_trimmatic_trimlog.log \
             /data/"$fq1" /data/"$fq2" \
             /data/"${prefix}"_R1_atrimd_nominlen.fq.gz \
             /data/"${prefix}"_unpaired_R1_nominlen.fq.gz \
@@ -438,7 +439,7 @@ do
                 OFS="\t" > "${prefix}"_dimer_report.txt
 
         trimmomatic_d PE \
-            -threads 6 -trimlog /data/"${prefix}"_trimmatic_trimlog_minlen.log \
+            -threads 12 -trimlog /data/"${prefix}"_trimmatic_trimlog_minlen.log \
             /data/"${prefix}"_R1_atrimd_nominlen.fq.gz \
             /data/"${prefix}"_R2_atrimd_nominlen.fq.gz \
             /data/"${prefix}"_R1_atrimd.fq.gz \
@@ -517,25 +518,25 @@ do
         rm *.fastq
 
         ### name-sort alignment file
-        echo "Name-sorting SAM file for primerclip"
-        samtools_d sort -@ 12 -n -O SAM /data/"${prefix}"_nontrimd.sam \
-            -o /data/"${prefix}"_nontrimd_namesrtd.sam \
-            > "${prefix}"_02_2_namesort.log
+       # echo "Name-sorting SAM file for primerclip"
+       # samtools_d sort -@ 12 -n -O SAM /data/"${prefix}"_nontrimd.sam \
+       #     -o /data/"${prefix}"_nontrimd_namesrtd.sam \
+       #     > "${prefix}"_02_2_namesort.log
 
         ### trim primers ###
-        echo "Trimming primers"
-        primerclip_d /data/totalmaster.tmp \
-            /data/"${prefix}"_nontrimd_namesrtd.sam \
-            /data/"${prefix}"_ptrimd.sam 2> "${prefix}"_03_ptrim.log
+       # echo "Trimming primers"
+       # primerclip_d /data/totalmaster.tmp \
+       #     /data/"${prefix}"_nontrimd_namesrtd.sam \
+       #     /data/"${prefix}"_ptrimd.sam 2> "${prefix}"_03_ptrim.log
 
-    fi
+   # fi
 
-    echo "sorting and adding read groups"
-    picard_d AddOrReplaceReadGroups \
-        I=/data/"${prefix}"_ptrimd.sam O=/data/"${prefix}"_sarscov2.bam \
-        SO=coordinate RGID=snpID LB=swift SM=/data"${prefix}" PL=illumina PU=miseq \
-        VALIDATION_STRINGENCY=LENIENT \
-        > "${prefix}"_04_addRGs.log
+   # echo "sorting and adding read groups"
+   # picard_d AddOrReplaceReadGroups \
+    #    I=/data/"${prefix}"_ptrimd.sam O=/data/"${prefix}"_sarscov2.bam \
+     #   SO=coordinate RGID=snpID LB=swift SM=/data"${prefix}" PL=illumina PU=miseq \
+      #  VALIDATION_STRINGENCY=LENIENT \
+       # > "${prefix}"_04_addRGs.log
 
     # save non-primertrimd BAM file for debugging and inspection
     #$picard SortSam I=${prefix}_nontrimd.sam O=${prefix}_nontrimd.bam \
@@ -557,7 +558,8 @@ do
     ### calculate coverage metrics ###
     echo "calculating coverage metrics"
     bedtools_d coverage \
-        -b /data/"${prefix}"_sarscov2.bam -a /data/"$bedfile" -d > "${prefix}".covd
+       # -b /data/"${prefix}"_sarscov2.bam -a /data/"$bedfile" -d > "${prefix}".covd
+         -b /data/"${prefix}"_nontrimd.bam -a /data/"$bedfile" -d > "${prefix}".covd
     awk '{sum+=$7}END{m=(sum/NR); b=m*0.2; c=m*0.05; print m, b, c}' \
         "${prefix}".covd \
         > "${prefix}"_covd.tmp 2> "${prefix}"_06_cov1.log
@@ -567,10 +569,12 @@ do
     #       for overlapping regions!
     # UPDATE 190520 remove -d option to get amplicon coverage as sum of alns
     # covering any part of amplicon target region (per amplicon)
-    bedtools_d coverage -b /data/"${prefix}"_sarscov2.bam -a /data/"$nomergebed" |
+    # bedtools_d coverage -b /data/"${prefix}"_sarscov2.bam -a /data/"$nomergebed" |
+        # sort -k1,1n -k2,2n \
+       # > "${prefix}"_amplicon_coverage.cov 2> "${prefix}"_07_cov2.log
+     bedtools_d coverage -b /data/"${prefix}"_nontrimd.bam -a /data/"$nomergebed" |
         sort -k1,1n -k2,2n \
         > "${prefix}"_amplicon_coverage.cov 2> "${prefix}"_07_cov2.log
-
     # 190520JCI
     awk '{sum+=$6}END{m=(sum/NR); b=m*0.2; print m, b}' OFS="\t" \
         "${prefix}"_amplicon_coverage.cov \
@@ -578,7 +582,10 @@ do
 
     # make an amplicon-specific coverage metrics report with olaps omitted
     # and report mean amplicon coverage using bedtool option (170228 JCI)
-    bedtools_d coverage -b /data/"${prefix}"_sarscov2.bam \
+    # bedtools_d coverage -b /data/"${prefix}"_sarscov2.bam \
+    #    -a /data/"$olapfreebed" -d \
+    #    > "${prefix}"_olapfree.covd 2> "${prefix}"_08_cov3.log
+      bedtools_d coverage -b /data/"${prefix}"_notrim.bam \
         -a /data/"$olapfreebed" -d \
         > "${prefix}"_olapfree.covd 2> "${prefix}"_08_cov3.log
 
@@ -609,6 +616,7 @@ do
 
     rm ./*covd.tmp
     rm ./*.sam
+exit 1
 
     ### NOTE: 170410 should we use amplicon coords for _fullintervals? ###
     # make intervals file for CollectTargetedPcrMetrics
